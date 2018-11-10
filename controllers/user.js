@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt');
 const User = require('../models/user');
 
 module.exports.logout = (req, res) => {
@@ -22,20 +23,24 @@ module.exports.login_post = (req, res) => {
     const {email, password} = req.body;
 
     User.findOne({email}, (err, doc) => {
-        if (err) {
-            throw new Error(err);
-        }
+        if (err)
+            return res.send(err);
 
         if (doc) {
-            if (doc.password === password) {
-                req.session.email = email;
-                res.redirect('/');
-            } else {
-                res.render('user/login', {
-                    email,
-                    error : 'Wrong password!'
-                });
-            }
+            bcrypt.compare(password, doc.password, (err, valid) => {
+                if (err)
+                    return res.send(err);
+
+                if (valid) {
+                    req.session.email = email;
+                    res.redirect('/');
+                } else {
+                    res.render('user/login', {
+                        email,
+                        error : 'Wrong password!'
+                    });
+                }
+            });
         } else {
             res.render('user/login', {
                 error : 'Email not registered!'
@@ -56,34 +61,38 @@ module.exports.register_post = (req, res) => {
     const {email, password, password2} = req.body;
 
     if (password !== password2) {
-        return res.render('user/register', {
+        res.render('user/register', {
             email,
             error : 'Passwords do not match!'
         });
-    }
+    } else {
+        User.findOne({email}, (err, doc) => {
+            if (err)
+                return res.send(err);
 
-    User.findOne({email}, (err, doc) => {
-        if (err) {
-            throw new Error(err);
-        }
+            if (doc) {
+                res.render('user/register', {
+                    error : 'Email already exists!'
+                });
+            } else {
+                bcrypt.hash(password, 10, (err, hash) => {
+                    if (err)
+                        return res.send(err);
 
-        if (doc) {
-            res.render('user/register', {
-                error : 'Email already exists!'
-            });
-        } else {
-            const user = new User({
-                email,
-                password
-            });
-        
-            user.save((err, doc) => {
-                if (err)
-                    throw new Error(err);
-            });
-
-            req.session.email = email;
-            res.redirect('/')
-        }
-    });    
+                    const user = new User({
+                        email,
+                        password : hash
+                    });
+                
+                    user.save((err, doc) => {
+                        if (err)
+                            return res.send(err);
+                            
+                        req.session.email = doc.email;
+                        res.redirect('/')
+                    });
+                });
+            }
+        });
+    }    
 };

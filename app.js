@@ -2,15 +2,17 @@ const path = require('path');
 const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
-const userRoutes = require('./routes/user');
-const routes = require('./routes/index');
-require('./hbs');
+const hbs = require('hbs');
+const MongoStore = require('connect-mongo')(session);
+const routes = require('./routes/routes');
+const db = require('./config/db').connection;
 
-const PORT = 3000;
 const app = express();
 
+hbs.registerPartials(path.join(__dirname, 'views', 'partials'));
 app.set('view engine', 'hbs');
 
+app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'css')));
 
 app.use(bodyParser.json());
@@ -22,11 +24,11 @@ app.use(session({
     saveUninitialized : true,
     cookie : {
         secure : false,
-        maxAge : 60 * 60  * 1000
-    }
+        maxAge : 60 * 60 * 1000
+    },
+    store : new MongoStore({mongooseConnection : db})
 }));
 
-app.use('/user', userRoutes);
-app.use('/', routes);
+routes(app);
 
-app.listen(PORT);
+app.listen(3000);
